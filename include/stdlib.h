@@ -109,6 +109,12 @@ _PDCLIB_PUBLIC void * calloc( size_t nmemb, size_t size );
 _PDCLIB_PUBLIC void * aligned_alloc( size_t alignment, size_t size );
 #endif
 
+/* Extension: release unused memory at the top of the heap, and empty heap
+   segments, back to the system, keeping at least pad bytes. Returns 1 if
+   any memory was released, 0 otherwise.
+*/
+_PDCLIB_PUBLIC int malloc_trim( size_t pad );
+
 /* De-allocate a chunk of heap memory previously allocated using malloc(),
    calloc(), or realloc(), and pointed to by ptr. If ptr does not match a
    pointer previously returned by the mentioned allocation functions, or

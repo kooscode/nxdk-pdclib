@@ -38,6 +38,7 @@ void * sbrk( intptr_t );
 #define dlcalloc   calloc
 #define dlrealloc  realloc
 #define dlfree     free
+#define dlmalloc_trim malloc_trim
 #if __STDC_VERSION__ >= 201112L
 #define dlmemalign aligned_alloc
 #endif
@@ -1306,7 +1307,7 @@ DLMALLOC_EXPORT void*  dlpvalloc(size_t);
 
   Malloc_trim returns 1 if it actually released any memory, else 0.
 */
-DLMALLOC_EXPORT int  dlmalloc_trim(size_t);
+/*DLMALLOC_EXPORT int  dlmalloc_trim(size_t);*/
 
 /*
   malloc_stats();
@@ -1721,7 +1722,29 @@ unsigned char _BitScanReverse(unsigned long *index, unsigned long mask);
 
 #if HAVE_MMAP
 
-#if !defined(WIN32) && !defined(NXDK)
+#if defined(NXDK)
+/* nxdk's VirtualQuery does not fill MEMORY_BASIC_INFORMATION the way the
+ * Win32 munmap walker below expects, so every release failed and freed
+ * segments were never returned to the system. Release the allocation, or
+ * decommit a tail of it. */
+static FORCEINLINE void *nxdk_mmap(size_t size)
+{
+    void *ptr = VirtualAlloc(0, size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+    return (ptr != 0) ? ptr : MFAIL;
+}
+static FORCEINLINE int nxdk_munmap(void *ptr, size_t size)
+{
+    if (!ptr || !size) return -1;
+    if (VirtualFree(ptr, 0, MEM_RELEASE))
+        return 0;
+    if (VirtualFree(ptr, size, MEM_DECOMMIT))
+        return 0;
+    return -1;
+}
+#define MMAP_DEFAULT(s)        nxdk_mmap(s)
+#define MUNMAP_DEFAULT(a, s)   nxdk_munmap((a), (s))
+#define DIRECT_MMAP_DEFAULT(s) nxdk_mmap(s)
+#elif !defined(WIN32)
 #define MUNMAP_DEFAULT(a, s)  munmap((a), (s))
 #define MMAP_PROT            (PROT_READ|PROT_WRITE)
 #if !defined(MAP_ANONYMOUS) && defined(MAP_ANON)
